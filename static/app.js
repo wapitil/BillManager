@@ -115,6 +115,15 @@ function setupUpload() {
     });
 }
 
+function setupTemplateUpload() {
+    const input = document.querySelector("[data-template-file]");
+    const label = document.querySelector("[data-template-file-name]");
+    if (!input || !label) return;
+    input.addEventListener("change", () => {
+        label.textContent = input.files.length ? input.files[0].name : "选择文件";
+    });
+}
+
 function getDocuments() {
     const data = document.getElementById("documents-data");
     if (!data) return {};
@@ -260,6 +269,8 @@ function showQueryFeedback() {
     else if (params.get("resolved")) showToast("报销结果已确认，成功票据已锁定。");
     else if (params.get("cancelled")) showToast("报销单已撤回，票据恢复为可编辑状态。");
     else if (params.get("reverted")) showToast("历史报销已撤回，票据已恢复。");
+    else if (params.get("template_uploaded")) showToast("报销单模板已更新，下一次生成报销单时生效。");
+    else if (params.get("template_error")) showToast(params.get("template_error"), "error");
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -267,6 +278,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupDialogs();
     setupConfirmations();
     setupUpload();
+    setupTemplateUpload();
     const documents = getDocuments();
     setupReviewWorkspace(documents);
     setupDocumentList(documents);

@@ -135,6 +135,23 @@
             </div>
         </section>
         {% endif %}
+
+        <section class="template-section">
+            <div class="content-section-head compact">
+                <div><span class="eyebrow">TEMPLATE</span><h2>报销单模板</h2></div>
+                <span class="muted-copy">当前：报销单模版.xlsx</span>
+            </div>
+            <form class="template-upload" action="/template" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="project_id" value="{{ project['id'] }}">
+                <span class="template-icon" data-icon="sheet"></span>
+                <div>
+                    <strong>上传新的报销单模板</strong>
+                    <small>仅支持 .xlsx；上传后下一次生成的报销单使用新模板，旧模板自动备份为 报销单模版.bak.xlsx。</small>
+                </div>
+                <label class="file-pick"><input type="file" name="template" accept=".xlsx" required data-template-file><span data-template-file-name>选择文件</span></label>
+                <button class="button primary" type="submit">上传模板</button>
+            </form>
+        </section>
     </section>
 
     <aside class="review-pane" id="receipt-workbench" aria-label="票据工作台">

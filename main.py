@@ -986,6 +986,32 @@ def create_project(name: str = Form(...)):
     return RedirectResponse(f"/projects/{project_id}", 303)
 
 
+@app.post("/template")
+def upload_template(
+    template: UploadFile = File(...),
+    project_id: int = Form(default=0),
+):
+    """上传新的报销单模板（.xlsx），旧模板自动备份为 报销单模版.bak.xlsx。"""
+    filename = Path(template.filename or "").name
+    redirect_to = f"/projects/{project_id}" if project_id else "/"
+    if not filename.lower().endswith(".xlsx"):
+        return RedirectResponse(f"{redirect_to}?template_error=仅支持 .xlsx 格式的模板", 303)
+    content = template.file.read()
+    try:
+        workbook = load_workbook(io.BytesIO(content))
+        if not workbook.sheetnames:
+            raise ValueError("模板没有工作表")
+    except Exception:
+        return RedirectResponse(
+            f"{redirect_to}?template_error=模板文件无法打开，请确认是有效的 Excel 文件", 303
+        )
+    REIMBURSEMENT_TEMPLATE.parent.mkdir(parents=True, exist_ok=True)
+    if REIMBURSEMENT_TEMPLATE.exists():
+        shutil.copy2(REIMBURSEMENT_TEMPLATE, REIMBURSEMENT_TEMPLATE.with_name("报销单模版.bak.xlsx"))
+    REIMBURSEMENT_TEMPLATE.write_bytes(content)
+    return RedirectResponse(f"{redirect_to}?template_uploaded=1", 303)
+
+
 @app.get("/projects/{project_id}")
 def project_detail(request: Request, project_id: int, document: int | None = None):
     with db() as connection:

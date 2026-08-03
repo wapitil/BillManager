@@ -235,6 +235,15 @@ svg { display: block; width: 1em; height: 1em; stroke-width: 1.8; }
 .empty-workflow p { margin: 0; color: var(--ink-faint); font-size: 11px; }
 
 .history-section { margin-top: 45px; scroll-margin-top: 20px; }
+.template-section { margin-top: 38px; }
+.template-upload { display: flex; min-height: 76px; align-items: center; padding: 13px 15px; gap: 13px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
+.template-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 11px; background: var(--green-soft); color: var(--green); font-size: 19px; }
+.template-upload > div { display: grid; flex: 1; }
+.template-upload strong { font-size: 12px; }
+.template-upload small { margin-top: 4px; color: var(--ink-faint); font-size: 10px; line-height: 1.55; }
+.file-pick { display: inline-flex; min-height: 36px; align-items: center; padding: 0 13px; border: 1px solid var(--line); border-radius: 9px; background: #fafafa; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--ink-soft); }
+.file-pick:hover { border-color: var(--line-strong); }
+.file-pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .batch-list { overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); }
 .batch-row { display: grid; min-height: 63px; grid-template-columns: 38px minmax(220px, 1fr) 92px 64px auto auto; align-items: center; padding: 9px 12px; gap: 9px; border-bottom: 1px solid var(--line); }
 .batch-row:last-child { border-bottom: 0; }

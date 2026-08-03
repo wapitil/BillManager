@@ -5,12 +5,17 @@ services:
     container_name: billmanage
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8000:8000"   # 只允许本机/Tailscale 访问，不暴露公网
+      # 端口映射格式：容器内的 8000（uvicorn 监听端口）→ 宿主机的 8000。
+      # host_ip 用 127.0.0.1 = 只在服务器本机回环地址上监听，
+      # 公网网卡不开放此端口；组内成员通过 tailscale serve 的 HTTPS 访问。
+      - target: 8000
+        published: 8000
+        host_ip: 127.0.0.1
     environment:
       - TZ=Asia/Shanghai
     volumes:
       - ./data:/app/data
-      - ./报销单模版.xlsx:/app/报销单模版.xlsx:ro
+      - ./报销单模版.xlsx:/app/报销单模版.xlsx
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"]
       interval: 30s
