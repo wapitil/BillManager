@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}BillManage · 发票报账工作台{% endblock %}
+{% block body_class %}home-page{% endblock %}
+
+{% block content %}
+<div class="home-canvas">
+    <header class="home-head">
+        <div>
+            <span class="eyebrow">发票报账工作台</span>
+            <h1>票据管理与报销单生成</h1>
+        </div>
+        <div class="home-head-actions">
+            <span class="privacy-pill"><span class="status-dot"></span>数据仅保存在本机</span>
+        </div>
+    </header>
+
+    <form class="composer-card" action="/projects" method="post">
+        <span class="composer-icon" data-icon="folder-plus"></span>
+        <div class="composer-input">
+            <label for="home-project-name">项目名称</label>
+            <input id="home-project-name" name="name" placeholder="例如：苏州客户现场支持，回车即可创建" required autocomplete="off">
+        </div>
+        <button class="button dark" type="submit">创建并进入</button>
+    </form>
+
+    <section class="recent-section" id="recent-projects">
+        <div class="content-section-head">
+            <div><span class="eyebrow">PROJECTS</span><h2>{% if projects %}最近的项目{% else %}还没有项目{% endif %}</h2></div>
+            {% if projects %}<span class="muted-copy">共 {{ projects|length }} 个项目</span>{% endif %}
+        </div>
+        {% if projects %}
+        <div class="project-card-grid">
+            {% for item in projects[:6] %}
+            <a class="project-card" href="/projects/{{ item['id'] }}">
+                <div class="project-card-top">
+                    <span class="project-avatar large">{{ item['name'][:1] }}</span>
+                    <span class="project-arrow" data-icon="arrow-up-right"></span>
+                </div>
+                <h3>{{ item['name'] }}</h3>
+                <p>{{ item['document_count'] }} 张票据 · {{ item['todo_count'] }} 项待处理</p>
+                <div class="project-progress"><span style="width: {% if item['document_count'] %}{{ ((item['document_count'] - item['todo_count']) / item['document_count'] * 100)|round|int }}{% else %}0{% endif %}%"></span></div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="home-empty">
+            <span class="empty-orbit"><span data-icon="receipt"></span></span>
+            <p>新建项目后，即可批量上传发票、火车票或滴滴打车行程单。</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project['name'] }} · BillManage{% endblock %}
+{% block body_class %}project-page{% endblock %}
+
+{% block content %}
+<header class="workspace-topbar">
+    <div class="workspace-title-row">
+        <a class="button subtle small" href="/" title="返回工作台"><span data-icon="arrow-left"></span>工作台</a>
+        <div class="workspace-title">
+            <div class="title-line"><h1>{{ project['name'] }}</h1></div>
+            <p>票据识别与报销工作台</p>
+        </div>
+    </div>
+    <div class="workspace-actions">
+        <span class="autosave-status"><span class="status-dot"></span>数据已保存</span>
+    </div>
+</header>
+
+{% if pending_batch %}
+<section class="pending-banner">
+    <div class="pending-banner-icon"><span data-icon="sheet"></span></div>
+    <div class="pending-banner-copy">
+        <span class="eyebrow">WAITING FOR CONFIRMATION</span>
+        <h2>报销单已生成，等待最终确认</h2>
+        <p>先下载检查 Excel。确认成功后票据将锁定；有问题的票据可勾选退回。</p>
+    </div>
+    <div class="pending-banner-actions">
+        <a class="button white" href="/batches/{{ pending_batch['id'] }}/form"><span data-icon="download"></span>下载报销单</a>
+        <button class="button primary" type="button" data-dialog-open="resolve-batch-dialog">确认报销结果</button>
+    </div>
+</section>
+{% endif %}
+
+<div class="workspace-layout {% if not documents %}is-empty{% endif %}">
+    <section class="task-pane">
+        <div class="pane-toolbar">
+            <div class="view-tabs" role="tablist" aria-label="票据视图">
+                <button class="view-tab active" type="button" data-filter="unsubmitted">未报销 <span>{{ documents|length - stats['reimbursed'] }}</span></button>
+                <button class="view-tab" type="button" data-filter="review">待核对 <span>{{ stats['review'] }}</span></button>
+                <button class="view-tab" type="button" data-filter="reimbursed">已报销 <span>{{ stats['reimbursed'] }}</span></button>
+            </div>
+            <div class="toolbar-tools">
+                <button class="icon-button" type="button" data-list-density aria-label="切换列表密度"><span data-icon="list"></span></button>
+            </div>
+        </div>
+
+        <form class="upload-zone {% if documents %}compact{% endif %}" action="/projects/{{ project['id'] }}/upload" method="post" enctype="multipart/form-data" data-upload-form>
+            <input type="file" name="files" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple required data-file-input>
+            <span class="upload-icon" data-icon="upload-cloud"></span>
+            <div><strong>{% if documents %}继续添加票据{% else %}把票据拖到这里{% endif %}</strong><small>支持 PDF、PNG、JPG、WebP，可一次选择多个文件</small></div>
+            <button class="button subtle" type="button" data-file-picker>选择文件</button>
+        </form>
+
+        {% if documents %}
+        <form class="document-list-form" action="/projects/{{ project['id'] }}/submit" method="post" data-reimbursement-form>
+            <div class="list-head">
+                <label class="selection-control"><input type="checkbox" data-select-all><span>选择全部未报销票据</span></label>
+                <span class="list-summary">共 {{ documents|length }} 张</span>
+            </div>
+
+            <div class="document-list" data-document-list>
+                {% for doc in documents %}
+                {% set detail = doc['route'] or doc['merchant'] or doc['original_filename'] or doc['filename'] %}
+                <article class="document-row {% if selected_id == doc['id'] %}selected{% endif %}" data-document-id="{{ doc['id'] }}" data-status="{{ doc['status'] }}" data-ocr-status="{{ doc['ocr_status'] }}" data-eligible="{{ 'true' if doc['eligible'] else 'false' }}">
+                    <label class="row-checkbox" title="{% if doc['eligible'] %}加入本次报销{% else %}需先确认票据信息{% endif %}">
+                        <input type="checkbox" name="document_ids" value="{{ doc['id'] }}" {% if not doc['eligible'] or pending_batch %}disabled{% endif %} data-document-check>
+                        <span></span>
+                    </label>
+                    <button class="document-select" type="button" data-open-document="{{ doc['id'] }}">
+                        <span class="file-type-icon {{ doc['doc_type'] or 'unknown' }}"><span data-icon="{% if doc['doc_type'] == 'train_ticket' %}train{% elif doc['doc_type'] == 'didi' %}taxi{% elif doc['doc_type'] == 'invoice' %}receipt{% else %}file{% endif %}"></span></span>
+                        <span class="document-main">
+                            <span class="document-title-line">
+                                <strong>{{ '滴滴打车' if doc['doc_type'] == 'didi' else ('火车票' if doc['doc_type'] == 'train_ticket' else ('发票' if doc['doc_type'] == 'invoice' else '待识别票据')) }}</strong>
+                                <span class="document-detail">{{ detail }}</span>
+                            </span>
+                            <span class="document-meta">
+                                <span>{{ doc['expense_date'] or '日期待确认' }}</span>
+                                <span>·</span>
+                                <span>{{ doc['original_filename'] or doc['filename'] }}</span>
+                            </span>
+                        </span>
+                        <span class="document-amount">{% if doc['amount'] %}<small>¥</small>{{ doc['amount'] }}{% else %}<small>—</small>{% endif %}</span>
+                        <span class="status-badge status-{{ doc['status'] }} ocr-{{ doc['ocr_status'] }}">
+                            {% if doc['status'] == 'reimbursed' %}已报销{% elif doc['status'] == 'submitted' %}已提交{% elif doc['ocr_status'] == 'confirmed' %}未报销{% elif doc['ocr_status'] == 'failed' %}识别失败{% elif doc['ocr_status'] == 'pending' %}识别中{% else %}待核对{% endif %}
+                        </span>
+                        <span class="row-chevron" data-icon="chevron-right"></span>
+                    </button>
+                </article>
+                {% endfor %}
+            </div>
+
+            <div class="selection-bar" data-selection-bar>
+                <div class="selection-info">
+                    <span class="selected-count" data-selected-count>0</span>
+                    <span><strong>已选择 <b data-selected-label>0</b> 张票据</strong><small>预计报销金额 ¥<b data-selected-total>0.00</b></small></span>
+                </div>
+                <button class="button primary" type="submit" {% if pending_batch %}disabled{% endif %}>
+                    <span data-icon="sparkles"></span>生成并提交报销单
+                </button>
+            </div>
+        </form>
+        {% else %}
+        <div class="empty-workflow">
+            <div class="empty-orbit"><span data-icon="receipt"></span></div>
+            <h2>从第一张票据开始</h2>
+            <p>上传后系统会自动识别并整理，你只需要完成最终核对。</p>
+        </div>
+        {% endif %}
+
+        {% if batches %}
+        <section class="history-section" id="reimbursement-history">
+            <div class="content-section-head compact">
+                <div><span class="eyebrow">HISTORY</span><h2>报销记录</h2></div>
+                <span class="muted-copy">共 {{ batches|length }} 个批次</span>
+            </div>
+            <div class="batch-list">
+                {% for batch in batches %}
+                <div class="batch-row">
+                    <span class="batch-icon"><span data-icon="sheet"></span></span>
+                    <span class="batch-main"><strong>{{ batch['form_filename'] or ('报销单批次 ' ~ batch['id']) }}</strong><small>{{ batch['submitted_date'] }} · {{ batch['document_count'] }} 张票据</small></span>
+                    <span class="batch-amount">¥{{ '%.2f'|format(batch['total_amount']) }}</span>
+                    <span class="status-badge {% if batch['status'] == 'confirmed' %}status-reimbursed{% else %}status-submitted{% endif %}">{{ '已确认' if batch['status'] == 'confirmed' else '待确认' }}</span>
+                    <span class="batch-actions">
+                        <a class="icon-button" href="/batches/{{ batch['id'] }}/form" aria-label="下载报销单" title="下载报销单"><span data-icon="download"></span></a>
+                        <a class="button subtle small" href="/batches/{{ batch['id'] }}/package" title="打包导出报销单和全部票据"><span data-icon="package"></span>打包导出</a>
+                    </span>
+                    {% if batch['status'] == 'confirmed' %}
+                    <form action="/batches/{{ batch['id'] }}/revert" method="post" data-confirm="撤回后，该批次票据将恢复为未报销，确定继续吗？">
+                        <button class="text-button danger" type="submit">撤回</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+    </section>
+
+    <aside class="review-pane" id="receipt-workbench" aria-label="票据工作台">
+        <div class="review-pane-head">
+            <div>
+                <span class="computer-status"><span class="status-dot"></span>BillManage Workspace</span>
+                <h2>票据工作台</h2>
+            </div>
+            <div class="review-head-actions">
+            </div>
+        </div>
+
+        {% if documents %}
+        <div class="review-content" data-review-content>
+            <div class="preview-card">
+                <div class="preview-toolbar">
+                    <span data-preview-filename>票据预览</span>
+                </div>
+                <div class="file-preview" data-file-preview></div>
+            </div>
+
+            <div class="analysis-card">
+                <div class="analysis-head">
+                    <div><span data-icon="sparkles"></span><span><strong>识别结果</strong><small data-analysis-subtitle>请核对关键信息</small></span></div>
+                    <span class="confidence-pill" data-confidence-pill>AI 识别</span>
+                </div>
+                <div class="locked-notice" data-locked-notice hidden><span data-icon="lock"></span><span><strong>票据已锁定</strong><small>已提交或已报销的票据只允许查看。</small></span></div>
+                <form class="review-form" method="post" data-confirm-form>
+                    <div class="form-grid two">
+                        <label><span class="field-label">票据类型</span><select name="doc_type" required data-field="doc_type"><option value="invoice">发票</option><option value="train_ticket">火车票</option><option value="didi">滴滴打车</option></select></label>
+                        <label><span class="field-label">金额</span><span class="money-input"><b>¥</b><input name="amount" inputmode="decimal" placeholder="0.00" required data-field="amount"></span></label>
+                    </div>
+                    <label><span class="field-label">费用日期</span><input class="text-input" type="date" name="expense_date" required data-field="expense_date"></label>
+                    <label data-route-field><span class="field-label">行程</span><input class="text-input" name="route" placeholder="例如：南京南-苏州北 或 公司-虹桥机场" data-field="route"></label>
+                    <label data-merchant-field><span class="field-label">销售方 / 商户</span><input class="text-input" name="merchant" placeholder="例如：某某科技有限公司" data-field="merchant"></label>
+                    <label><span class="field-label">发票号码 / 客票号</span><input class="text-input" name="invoice_number" placeholder="选填" data-field="invoice_number"></label>
+                    <button class="button primary full" type="submit" data-review-confirm-button><span data-icon="check"></span>保存修改</button>
+                </form>
+
+                <div class="review-secondary-actions">
+                    <form method="post" data-rerun-form><button class="text-button" type="submit"><span data-icon="refresh"></span>重新识别</button></form>
+                    <form method="post" data-delete-form data-confirm="删除后无法恢复，确定删除这张票据吗？"><button class="text-button danger" type="submit"><span data-icon="trash"></span>删除票据</button></form>
+                </div>
+            </div>
+
+            <details class="ocr-details">
+                <summary><span><span data-icon="code"></span>查看 OCR 原始文本</span><span data-icon="chevron-down"></span></summary>
+                <pre data-ocr-text></pre>
+            </details>
+        </div>
+        {% else %}
+        <div class="review-empty"><span class="review-empty-icon" data-icon="mouse-pointer"></span><h3>这里是票据工作台</h3><p>上传票据后，可在这里预览原件并核对识别结果。</p></div>
+        {% endif %}
+    </aside>
+</div>
+
+{% if pending_batch %}
+<dialog class="app-dialog" id="resolve-batch-dialog">
+    <form class="dialog-card wide" action="/batches/{{ pending_batch['id'] }}/resolve" method="post">
+        <div class="dialog-head">
+            <div><span class="eyebrow">FINAL CHECK</span><h2>确认报销结果</h2><p>默认全部成功。如有被退回的票据，请勾选后再确认。</p></div>
+            <button class="icon-button" type="button" data-dialog-close aria-label="关闭"><span data-icon="close"></span></button>
+        </div>
+        <div class="return-list">
+            {% for doc in documents if doc['batch_id'] == pending_batch['id'] %}
+            <label class="return-item">
+                <input type="checkbox" name="returned_ids" value="{{ doc['id'] }}">
+                <span class="return-check"></span>
+                <span class="file-type-icon small {{ doc['doc_type'] }}"><span data-icon="{{ 'train' if doc['doc_type'] == 'train_ticket' else ('taxi' if doc['doc_type'] == 'didi' else 'receipt') }}"></span></span>
+                <span><strong>{{ doc['route'] or doc['merchant'] or doc['filename'] }}</strong><small>{{ doc['expense_date'] }} · ¥{{ doc['amount'] }}</small></span>
+                <span class="return-label">退回此票据</span>
+            </label>
+            {% endfor %}
+        </div>
+        <div class="dialog-actions split">
+            <button class="button danger-ghost" type="submit" formaction="/batches/{{ pending_batch['id'] }}/cancel" formmethod="post" formnovalidate data-confirm-button="撤回后将删除本次生成的报销单，票据恢复为可编辑。确定继续吗？">撤回整张报销单</button>
+            <div><button class="button ghost" type="button" data-dialog-close>稍后处理</button><button class="button primary" type="submit">确认处理结果</button></div>
+        </div>
+    </form>
+</dialog>
+{% endif %}
+
+<script id="documents-data" type="application/json">{{ documents_json|tojson }}</script>
+{% endblock %}

@@ -1,0 +1,19 @@
+services:
+  billmanage:
+    build: .
+    image: billmanage:latest
+    container_name: billmanage
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"   # 只允许本机/Tailscale 访问，不暴露公网
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data:/app/data
+      - ./报销单模版.xlsx:/app/报销单模版.xlsx:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

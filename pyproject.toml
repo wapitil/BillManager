@@ -1,0 +1,14 @@
+[project]
+name = "billmanage"
+version = "0.1.0"
+description = "本地 OCR 票据归档与报销管理工具"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.140.7",
+    "jinja2>=3.1.6",
+    "openpyxl>=3.1.5",
+    "pymupdf>=1.28.0",
+    "python-multipart>=0.0.32",
+    "uvicorn>=0.51.0",
+]

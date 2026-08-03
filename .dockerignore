@@ -1,0 +1,10 @@
+.git
+.venv
+__pycache__
+.uv-cache
+data
+tests
+README.md
+DEPLOY.md
+*.pyc
+.DS_Store
