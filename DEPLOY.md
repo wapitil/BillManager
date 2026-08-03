@@ -19,6 +19,17 @@ curl -fsSL https://get.docker.com | sh
 sudo systemctl enable --now docker
 sudo usermod -aG docker $USER
 
+# 配置 Docker 国内镜像加速（拉镜像更快；腾讯云内网地址，仅腾讯云服务器可用）
+sudo tee /etc/docker/daemon.json > /dev/null <<'EOF'
+{
+  "registry-mirrors": [
+    "https://mirror.ccs.tencentyun.com",
+    "https://docker.m.daocloud.io"
+  ]
+}
+EOF
+sudo systemctl restart docker
+
 # 安装 Tailscale
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
@@ -42,6 +53,11 @@ mkdir -p data
 
 # 构建并启动
 sudo docker compose up -d --build
+
+# 说明：Dockerfile 已内置国内源
+#   - 基础镜像默认走 docker.m.daocloud.io 代理（可在 compose 的 build.args 修改）
+#   - apt 软件源使用腾讯云镜像 mirrors.cloud.tencent.com
+#   - Python 依赖源使用腾讯云 PyPI 镜像
 
 # 检查状态
 sudo docker compose ps

@@ -1,9 +1,17 @@
-FROM python:3.13-slim
+# 基础镜像可切换：国内构建时用 docker.m.daocloud.io 代理（docker compose build.args 覆盖）
+ARG PYTHON_IMAGE=python:3.13-slim
+FROM ${PYTHON_IMAGE}
 
 ENV PYTHONUNBUFFERED=1 \
     TZ=Asia/Shanghai \
     PIP_NO_CACHE_DIR=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    UV_DEFAULT_INDEX=https://mirrors.cloud.tencent.com/pypi/simple
+
+# apt 源切换到腾讯云镜像（国内构建更快）
+RUN sed -i \
+        's|deb.debian.org|mirrors.cloud.tencent.com|g; s|security.debian.org|mirrors.cloud.tencent.com|g' \
+        /etc/apt/sources.list.d/debian.sources
 
 # Tesseract OCR with Chinese support for scanned invoices.
 RUN apt-get update \

@@ -1,6 +1,11 @@
 services:
   billmanage:
-    build: .
+    build:
+      context: .
+      args:
+        # 国内拉取基础镜像：通过 daocloud 的 Docker Hub 代理；如不稳定可换成
+        # registry.cn-hangzhou.aliyuncs.com 等其它可用代理，或保持 python:3.13-slim
+        PYTHON_IMAGE: docker.m.daocloud.io/python:3.13-slim
     image: billmanage:latest
     container_name: billmanage
     restart: unless-stopped
