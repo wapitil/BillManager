@@ -5,6 +5,7 @@ FROM ${PYTHON_IMAGE}
 ENV PYTHONUNBUFFERED=1 \
     TZ=Asia/Shanghai \
     PIP_NO_CACHE_DIR=1 \
+    PIP_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple \
     UV_LINK_MODE=copy \
     UV_DEFAULT_INDEX=https://mirrors.cloud.tencent.com/pypi/simple
 
