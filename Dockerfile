@@ -10,7 +10,8 @@ FROM ${UV_IMAGE} AS uv
 FROM ${PYTHON_IMAGE}
 
 # FROM 会开启新的 ARG 作用域，需在当前阶段重新声明才能供 ENV 使用。
-ARG UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple
+ARG UV_DEFAULT_INDEX=https://mirrors.cloud.tencent.com/pypi/simple
+ARG UV_FILES_BASE=https://mirrors.cloud.tencent.com/pypi
 
 ENV PYTHONUNBUFFERED=1 \
     TZ=Asia/Shanghai \
@@ -36,11 +37,16 @@ WORKDIR /app
 # 先只复制依赖清单，业务代码变化不会导致依赖重装。
 COPY pyproject.toml uv.lock ./
 
+# frozen lock 中包含 files.pythonhosted.org 的完整 wheel URL，单独设置 index 不会改写它。
+# 仅在镜像内部把 registry / wheel 主机改成腾讯云镜像；版本与 SHA256 均保持不变。
 # cache mount 在 uv.lock 变化、依赖层必须重建时仍可复用已下载的 wheel。
-# 应用是单文件入口，无需把项目本身安装进虚拟环境。
 RUN --mount=from=uv,source=/uv,target=/usr/local/bin/uv \
     --mount=type=cache,id=billmanage-uv,target=/root/.cache/uv \
-    uv sync --no-dev --frozen --no-install-project
+    sed -i \
+        -e "s|https://pypi.org/simple|${UV_DEFAULT_INDEX}|g" \
+        -e "s|https://files.pythonhosted.org|${UV_FILES_BASE}|g" \
+        uv.lock \
+    && uv sync --no-dev --frozen --no-install-project
 
 COPY main.py ./
 COPY templates ./templates

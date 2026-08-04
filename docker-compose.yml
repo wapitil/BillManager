@@ -8,8 +8,10 @@ services:
         PYTHON_IMAGE: docker.m.daocloud.io/python:3.13-slim
         # uv 官方镜像经 DaoCloud 代理拉取；避免在构建中执行 pip install uv。
         UV_IMAGE: m.daocloud.io/ghcr.io/astral-sh/uv:0.12.1
-        # Python 依赖使用国内镜像；若镜像同步异常，可临时改为 https://pypi.org/simple。
-        UV_DEFAULT_INDEX: https://mirrors.aliyun.com/pypi/simple
+        # 腾讯云服务器直接使用腾讯云 PyPI 镜像。UV_FILES_BASE 用于改写
+        # uv.lock 中 frozen 模式仍会访问的 files.pythonhosted.org 完整 URL。
+        UV_DEFAULT_INDEX: https://mirrors.cloud.tencent.com/pypi/simple
+        UV_FILES_BASE: https://mirrors.cloud.tencent.com/pypi
         # 如果所有镜像仍很慢，可走服务器上已运行的 clash 代理（日本节点）：
         # 网关地址先查：docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'
         # HTTP_PROXY: http://<网关IP>:7890

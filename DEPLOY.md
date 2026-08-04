@@ -64,7 +64,7 @@ Dockerfile / Compose 已针对国内构建做了以下优化：
 - Python 基础镜像走 DaoCloud 代理；
 - `uv` 二进制从 DaoCloud 代理的官方 uv 镜像复制，不再执行 `pip install uv`；
 - apt 软件源使用腾讯云镜像 `mirrors.cloud.tencent.com`；
-- Python 依赖默认使用阿里云 PyPI 镜像；
+- Python 依赖及 lock 中的 wheel URL 均使用腾讯云 PyPI 镜像；
 - uv 下载目录使用 BuildKit cache mount。即使 `uv.lock` 更新，也能复用已下载的 wheel；
 - 仅业务代码发生变化时，依赖安装层会直接命中 Docker 缓存。
 
@@ -87,6 +87,7 @@ sudo docker compose build \
   --build-arg HTTP_PROXY=http://$GW:7890 \
   --build-arg HTTPS_PROXY=http://$GW:7890 \
   --build-arg UV_DEFAULT_INDEX=https://pypi.org/simple \
+  --build-arg UV_FILES_BASE=https://files.pythonhosted.org \
   --progress plain
 sudo docker compose up -d
 ```
