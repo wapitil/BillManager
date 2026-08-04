@@ -7,10 +7,7 @@ https://bill.getnet.store {
     bind 100.117.187.60
 
     tls {
-        dns tencentcloud {
-            secret_id {$TENCENTCLOUD_SECRET_ID}
-            secret_key {$TENCENTCLOUD_SECRET_KEY}
-        }
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
     }
 
     reverse_proxy 127.0.0.1:8000

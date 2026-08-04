@@ -10,7 +10,7 @@ ENV GOPROXY=${GOPROXY} \
     GOSUMDB=${GOSUMDB}
 
 RUN xcaddy build \
-    --with github.com/caddy-dns/tencentcloud
+    --with github.com/caddy-dns/cloudflare
 
 FROM caddy:2
 

@@ -9,7 +9,7 @@
 2. 一个 Tailscale 账号（组内成员共享的同一账号/企业版）；
 3. 本仓库代码（可通过 `git clone` 或 `scp` 上传到服务器）；
 4. 自定义域名 `bill.getnet.store`，A 记录指向 `100.117.187.60`；
-5. 腾讯云 API 密钥，用于 Caddy 通过 DNSPod DNS-01 自动申请和续期 HTTPS 证书。
+5. Cloudflare API Token，用于 Caddy 通过 DNS-01 自动申请和续期 HTTPS 证书。
 
 ## 二、服务器初始化
 
@@ -51,7 +51,7 @@ cd /opt/billmanage
 # 准备数据目录（数据库、待确认、归档、报销单都在这里）
 mkdir -p data
 
-# 配置 HTTPS 证书所需的 DNSPod 密钥；不要把 .env 提交到 Git。
+# 配置 HTTPS 证书所需的 Cloudflare API Token；不要把 .env 提交到 Git。
 cp .env.example .env
 nano .env
 
@@ -71,7 +71,7 @@ Dockerfile / Compose 已针对国内构建做了以下优化：
 - Python 依赖及 lock 中的 wheel URL 均使用腾讯云 PyPI 镜像；
 - uv 下载目录使用 BuildKit cache mount。即使 `uv.lock` 更新，也能复用已下载的 wheel；
 - 仅业务代码发生变化时，依赖安装层会直接命中 Docker 缓存。
-- Caddy 的 DNSPod 插件使用 `goproxy.cn` 下载，并使用独立的 `sum.golang.google.cn` 校验模块；
+- Caddy 的 Cloudflare DNS 插件使用 `goproxy.cn` 下载，并使用独立的 `sum.golang.google.cn` 校验模块；
 
 首次构建仍需下载基础镜像、uv 镜像、Tesseract 和 Python 依赖；从第二次构建开始通常会明显加快。
 可用下面的命令查看每一层的真实耗时：
@@ -117,9 +117,20 @@ sudo docker compose up -d
 
 ```dotenv
 ACME_EMAIL=你的有效邮箱
-TENCENTCLOUD_SECRET_ID=你的腾讯云SecretId
-TENCENTCLOUD_SECRET_KEY=你的腾讯云SecretKey
+CLOUDFLARE_API_TOKEN=你的Cloudflare API Token
 ```
+
+创建 Cloudflare Token 时使用自定义令牌，并限制为：
+
+- 权限：`Zone / Zone / Read`；
+- 权限：`Zone / DNS / Edit`；
+- 区域资源：仅包含 `getnet.store`。
+
+不要使用 Global API Key，也不要把 Token 发到聊天、截图或提交到 Git。
+
+如果服务器上原来的 `.env` 仍包含 `TENCENTCLOUD_SECRET_ID` 和
+`TENCENTCLOUD_SECRET_KEY`，请删除这两行并改成上面的
+`CLOUDFLARE_API_TOKEN`。修改后必须重新构建 Caddy 镜像，单纯重启旧镜像不会切换 DNS 插件。
 
 ## 四、通过自定义域名访问
 
@@ -130,7 +141,7 @@ tailscale ip -4
 # 应输出 100.117.187.60
 ```
 
-DNSPod 需要存在以下记录：
+Cloudflare DNS 需要存在以下记录，并保持 **仅 DNS（灰色云朵）**：
 
 ```text
 bill.getnet.store  A  100.117.187.60
@@ -144,7 +155,7 @@ sudo docker compose up -d --build
 sudo docker compose logs -f caddy
 ```
 
-Caddy 会通过 DNSPod DNS-01 验证域名并自动申请证书。日志出现证书获取成功后，Tailnet 内成员访问：
+Caddy 会通过 Cloudflare DNS-01 验证域名并自动申请证书。日志出现证书获取成功后，Tailnet 内成员访问：
 
 ```text
 https://bill.getnet.store
@@ -192,6 +203,6 @@ sudo tar -czf billmanage-backup-$(date +%F).tar.gz data/
 - Docker 端口映射 `127.0.0.1:8000:8000` 的意思是：**宿主机的 8000 端口 → 容器内的 8000 端口**，且只绑定本机回环地址（`127.0.0.1`）。因此公网网卡不监听 8000，安全组不要放行 8000；
 - Caddy 使用宿主机网络，并通过 `bind 100.117.187.60` 只监听 Tailscale 地址的 `443` 端口；
 - 组内访问路径：成员 → `https://bill.getnet.store:443` → Caddy → `http://127.0.0.1:8000`（本机回环）→ Docker 容器；
-- 腾讯云安全组不要开放公网 `80`、`443` 或 `8000`；证书验证通过 DNSPod API 完成，不依赖公网入站端口；
+- 腾讯云安全组不要开放公网 `80`、`443` 或 `8000`；证书验证通过 Cloudflare API 完成，不依赖公网入站端口；
 - 数据持久化在宿主机 `data/` 目录（SQLite 数据库 + 全部票据原件）；
 - 容器内时区已设为 `Asia/Shanghai`，归档月份与报销日期与本地一致。
