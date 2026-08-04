@@ -349,3 +349,11 @@ svg { display: block; width: 1em; height: 1em; stroke-width: 1.8; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* A4 two-up print actions */
+.selection-actions { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 900px) {
+    .selection-bar { align-items: stretch; flex-direction: column; }
+    .selection-actions { width: 100%; }
+    .selection-actions .button { flex: 1; }
+}

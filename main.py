@@ -943,6 +943,189 @@ def batch_document_total(documents) -> str:
     return f"{total.quantize(Decimal('0.01'))}"
 
 
+def printable_content_clip(page: pymupdf.Page) -> pymupdf.Rect:
+    """Find the useful page area so A4 sources with large white margins print legibly."""
+    page_rect = page.rect
+    candidates: list[pymupdf.Rect] = []
+
+    for block in page.get_text("blocks"):
+        rect = pymupdf.Rect(block[:4])
+        # Ignore isolated page numbers / footers far below the main document.
+        if (
+            rect.y0 > page_rect.height * 0.86
+            and rect.height < page_rect.height * 0.04
+        ):
+            continue
+        if not rect.is_empty:
+            candidates.append(rect)
+    for drawing in page.get_drawings():
+        rect = drawing.get("rect")
+        if rect and not rect.is_empty and rect.get_area() < page_rect.get_area() * 0.8:
+            candidates.append(rect)
+    for image in page.get_images(full=True):
+        for rect in page.get_image_rects(image[0]):
+            if rect.get_area() < page_rect.get_area() * 0.8:
+                candidates.append(rect)
+
+    if candidates:
+        content = pymupdf.Rect(candidates[0])
+        for rect in candidates[1:]:
+            content.include_rect(rect)
+    else:
+        # Scanned invoices often appear as one full-page image. Detect non-white rows
+        # in a low-resolution rendering and keep the dominant content band.
+        pixmap = page.get_pixmap(
+            matrix=pymupdf.Matrix(1, 1),
+            colorspace=pymupdf.csGRAY,
+            alpha=False,
+        )
+        samples = memoryview(pixmap.samples)
+        row_ink: list[int] = []
+        for y in range(pixmap.height):
+            row = samples[y * pixmap.stride : y * pixmap.stride + pixmap.width]
+            row_ink.append(sum(value < 245 for value in row))
+        active_rows = [index for index, count in enumerate(row_ink) if count >= 2]
+        if not active_rows:
+            return page_rect
+
+        bands: list[tuple[int, int]] = []
+        band_start = previous = active_rows[0]
+        for row in active_rows[1:]:
+            if row - previous > 6:
+                bands.append((band_start, previous))
+                band_start = row
+            previous = row
+        bands.append((band_start, previous))
+        main_band = max(
+            bands,
+            key=lambda band: sum(row_ink[band[0] : band[1] + 1]),
+        )
+        selected = [main_band]
+        changed = True
+        max_gap = max(18, int(pixmap.height * 0.06))
+        while changed:
+            changed = False
+            top = min(band[0] for band in selected)
+            bottom = max(band[1] for band in selected)
+            for band in bands:
+                if band in selected:
+                    continue
+                gap = max(top - band[1], band[0] - bottom, 0)
+                if gap <= max_gap:
+                    selected.append(band)
+                    changed = True
+        y_min = min(band[0] for band in selected)
+        y_max = max(band[1] for band in selected)
+        x_min, x_max = pixmap.width, 0
+        for y in range(y_min, y_max + 1):
+            row = samples[y * pixmap.stride : y * pixmap.stride + pixmap.width]
+            active_x = [x for x, value in enumerate(row) if value < 245]
+            if active_x:
+                x_min = min(x_min, active_x[0])
+                x_max = max(x_max, active_x[-1])
+        if x_max <= x_min:
+            return page_rect
+        scale_x = page_rect.width / pixmap.width
+        scale_y = page_rect.height / pixmap.height
+        content = pymupdf.Rect(
+            x_min * scale_x,
+            y_min * scale_y,
+            (x_max + 1) * scale_x,
+            (y_max + 1) * scale_y,
+        )
+
+    padding = max(8, min(content.width, content.height) * 0.035)
+    content = pymupdf.Rect(
+        max(page_rect.x0, content.x0 - padding),
+        max(page_rect.y0, content.y0 - padding),
+        min(page_rect.x1, content.x1 + padding),
+        min(page_rect.y1, content.y1 + padding),
+    )
+    return content if not content.is_empty else page_rect
+
+
+def generate_two_up_print_pdf(documents) -> bytes:
+    """Arrange source pages two-up on portrait A4 pages for convenient printing."""
+    a4_width, a4_height = pymupdf.paper_size("a4")
+    margin = 24
+    center_gap = 22
+    half_height = a4_height / 2
+    slots = (
+        pymupdf.Rect(margin, margin, a4_width - margin, half_height - center_gap / 2),
+        pymupdf.Rect(
+            margin,
+            half_height + center_gap / 2,
+            a4_width - margin,
+            a4_height - margin,
+        ),
+    )
+    output = pymupdf.open()
+    slot_index = 0
+
+    try:
+        for document in documents:
+            source_path = BASE_DIR / document["storage_path"]
+            if not source_path.exists():
+                raise HTTPException(404, f"票据文件不存在：{document['filename']}")
+
+            source_file = pymupdf.open(source_path)
+            converted_file = None
+            try:
+                if source_path.suffix.lower() != ".pdf":
+                    converted_file = pymupdf.open("pdf", source_file.convert_to_pdf())
+                    source = converted_file
+                else:
+                    source = source_file
+                for source_page_number in range(source.page_count):
+                    if slot_index % 2 == 0:
+                        output.new_page(width=a4_width, height=a4_height)
+                    source_page = source[source_page_number]
+                    output[-1].show_pdf_page(
+                        slots[slot_index % 2],
+                        source,
+                        source_page_number,
+                        keep_proportion=True,
+                        clip=printable_content_clip(source_page),
+                    )
+                    slot_index += 1
+            finally:
+                if converted_file is not None:
+                    converted_file.close()
+                source_file.close()
+
+        if slot_index == 0:
+            raise HTTPException(400, "所选票据没有可打印的页面")
+
+        for page in output:
+            page.draw_line(
+                pymupdf.Point(margin, half_height),
+                pymupdf.Point(a4_width - margin, half_height),
+                color=(0.72, 0.72, 0.72),
+                width=0.5,
+                dashes="3 3",
+            )
+        output.set_metadata(
+            {
+                "title": "A4 二联票据打印版",
+                "subject": "每页上下排列两张票据，请使用 A4、实际大小打印",
+                "creator": "BillManage",
+            }
+        )
+        return output.tobytes(garbage=4, deflate=True)
+    finally:
+        output.close()
+
+
+def print_pdf_response(documents, filename: str) -> Response:
+    content = generate_two_up_print_pdf(documents)
+    safe_filename = safe_name(filename, "A4二联票据打印版") + ".pdf"
+    headers = {
+        "Content-Disposition": f"inline; filename*=UTF-8''{quote(safe_filename)}",
+        "Cache-Control": "no-store",
+    }
+    return Response(content, media_type="application/pdf", headers=headers)
+
+
 def require_document(connection: sqlite3.Connection, document_id: int):
     document = connection.execute(
         "SELECT * FROM documents WHERE id = ?", (document_id,)
@@ -1255,6 +1438,29 @@ def delete_document(document_id: int):
     return RedirectResponse(f"/projects/{project_id}", 303)
 
 
+@app.post("/projects/{project_id}/print")
+def print_selected_documents(
+    project_id: int, document_ids: list[int] = Form(default=[])
+):
+    selected_ids = list(dict.fromkeys(document_ids))
+    if not selected_ids:
+        raise HTTPException(400, "请先选择要打印的票据")
+    placeholders = ",".join("?" for _ in selected_ids)
+    with db() as connection:
+        project = get_project(connection, project_id)
+        documents = connection.execute(
+            f"""
+            SELECT * FROM documents
+            WHERE project_id = ? AND id IN ({placeholders})
+            ORDER BY expense_date, id
+            """,
+            (project_id, *selected_ids),
+        ).fetchall()
+    if len(documents) != len(selected_ids):
+        raise HTTPException(400, "所选票据无效或不属于当前项目")
+    return print_pdf_response(documents, f"{project['name']}_A4二联票据打印版")
+
+
 @app.post("/projects/{project_id}/submit")
 def submit_batch(project_id: int, document_ids: list[int] = Form(default=[])):
     with db() as connection:
@@ -1342,12 +1548,47 @@ def reimbursement_form(batch_id: int):
     )
 
 
-@app.get("/batches/{batch_id}/package")
-def batch_package(batch_id: int):
-    """打包导出：报销单 Excel + 该批次全部票据（使用整理后的归档文件名）。"""
+@app.get("/batches/{batch_id}/print")
+def print_batch_documents(batch_id: int):
     with db() as connection:
         batch = connection.execute(
-            "SELECT * FROM reimbursement_batches WHERE id = ?", (batch_id,)
+            """
+            SELECT b.*, p.name AS project_name
+            FROM reimbursement_batches b
+            JOIN projects p ON p.id = b.project_id
+            WHERE b.id = ?
+            """,
+            (batch_id,),
+        ).fetchone()
+        if not batch:
+            raise HTTPException(404, "报销批次不存在")
+        documents = connection.execute(
+            """
+            SELECT * FROM documents
+            WHERE batch_id = ?
+            ORDER BY expense_date, id
+            """,
+            (batch_id,),
+        ).fetchall()
+    if not documents:
+        raise HTTPException(400, "该报销批次没有可打印的票据")
+    return print_pdf_response(
+        documents, f"{batch['project_name']}_{batch['submitted_date']}_A4二联票据打印版"
+    )
+
+
+@app.get("/batches/{batch_id}/package")
+def batch_package(batch_id: int):
+    """打包导出打印文件和使用整理后文件名的原始票据。"""
+    with db() as connection:
+        batch = connection.execute(
+            """
+            SELECT b.*, p.name AS project_name
+            FROM reimbursement_batches b
+            JOIN projects p ON p.id = b.project_id
+            WHERE b.id = ?
+            """,
+            (batch_id,),
         ).fetchone()
         if not batch:
             raise HTTPException(404, "报销批次不存在")
@@ -1360,31 +1601,44 @@ def batch_package(batch_id: int):
         ).fetchone()["form_filename"]
         documents = connection.execute(
             """
-            SELECT filename, storage_path FROM documents
+            SELECT * FROM documents
             WHERE batch_id = ?
             ORDER BY expense_date, id
             """,
             (batch_id,),
         ).fetchall()
 
+    two_up_filename = safe_name(
+        f"{batch['project_name']}_{batch['submitted_date']}_A4二联票据打印版"
+    ) + ".pdf"
+    two_up_pdf = generate_two_up_print_pdf(documents) if documents else None
+
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.write(form_path, arcname=form_filename or form_path.name)
+        archive.write(
+            form_path,
+            arcname=f"打印文件/{form_filename or form_path.name}",
+        )
+        if two_up_pdf:
+            archive.writestr(f"打印文件/{two_up_filename}", two_up_pdf)
+
         used_names: dict[str, int] = {}
         for document in documents:
-            path = BASE_DIR / document["storage_path"]
-            if not path.exists():
+            source_path = BASE_DIR / document["storage_path"]
+            if not source_path.exists():
                 continue
-            name = document["filename"]
-            if name in used_names:
-                used_names[name] += 1
-                stem, suffix = Path(name).stem, Path(name).suffix
-                name = f"{stem}-{used_names[name]}{suffix}"
-            else:
-                used_names[name] = 0
-            archive.write(path, arcname=f"票据/{name}")
+            original_name = document["filename"]
+            duplicate_number = used_names.get(original_name, 0)
+            used_names[original_name] = duplicate_number + 1
+            if duplicate_number:
+                source_name = Path(original_name)
+                original_name = (
+                    f"{source_name.stem}-{duplicate_number + 1}{source_name.suffix}"
+                )
+            archive.write(source_path, arcname=f"原始文件/{original_name}")
+
     buffer.seek(0)
-    zip_name = f"{Path(form_filename).stem}_报销单与票据.zip"
+    zip_name = f"{Path(form_filename).stem}_打印与原始文件.zip"
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(zip_name)}"}
     return Response(
         buffer.getvalue(),

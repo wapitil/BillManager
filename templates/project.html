@@ -26,6 +26,7 @@
         <p>先下载检查 Excel。确认成功后票据将锁定；有问题的票据可勾选退回。</p>
     </div>
     <div class="pending-banner-actions">
+        <a class="button white" href="/batches/{{ pending_batch['id'] }}/print" target="_blank" title="A4 纸每页上下排列两张票据"><span data-icon="printer"></span>A4 二联打印</a>
         <a class="button white" href="/batches/{{ pending_batch['id'] }}/form"><span data-icon="download"></span>下载报销单</a>
         <button class="button primary" type="button" data-dialog-open="resolve-batch-dialog">确认报销结果</button>
     </div>
@@ -95,9 +96,14 @@
                     <span class="selected-count" data-selected-count>0</span>
                     <span><strong>已选择 <b data-selected-label>0</b> 张票据</strong><small>预计报销金额 ¥<b data-selected-total>0.00</b></small></span>
                 </div>
-                <button class="button primary" type="submit" {% if pending_batch %}disabled{% endif %}>
-                    <span data-icon="sparkles"></span>生成并提交报销单
-                </button>
+                <div class="selection-actions">
+                    <button class="button subtle" type="submit" formaction="/projects/{{ project['id'] }}/print" formmethod="post" formtarget="_blank" data-selection-action {% if pending_batch %}disabled{% endif %} title="生成 A4 PDF，每页上下自动排列两张票据">
+                        <span data-icon="printer"></span>A4 二联打印
+                    </button>
+                    <button class="button primary" type="submit" data-selection-action {% if pending_batch %}disabled{% endif %}>
+                        <span data-icon="sparkles"></span>生成并提交报销单
+                    </button>
+                </div>
             </div>
         </form>
         {% else %}
@@ -123,7 +129,8 @@
                     <span class="status-badge {% if batch['status'] == 'confirmed' %}status-reimbursed{% else %}status-submitted{% endif %}">{{ '已确认' if batch['status'] == 'confirmed' else '待确认' }}</span>
                     <span class="batch-actions">
                         <a class="icon-button" href="/batches/{{ batch['id'] }}/form" aria-label="下载报销单" title="下载报销单"><span data-icon="download"></span></a>
-                        <a class="button subtle small" href="/batches/{{ batch['id'] }}/package" title="打包导出报销单和全部票据"><span data-icon="package"></span>打包导出</a>
+                        <a class="button subtle small" href="/batches/{{ batch['id'] }}/print" target="_blank" title="A4 纸每页上下排列两张票据"><span data-icon="printer"></span>二联打印</a>
+                        <a class="button subtle small" href="/batches/{{ batch['id'] }}/package" title="分目录导出打印文件和整理后的原始票据"><span data-icon="package"></span>打包导出</a>
                     </span>
                     {% if batch['status'] == 'confirmed' %}
                     <form action="/batches/{{ batch['id'] }}/revert" method="post" data-confirm="撤回后，该批次票据将恢复为未报销，确定继续吗？">

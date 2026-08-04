@@ -21,6 +21,7 @@ const iconPaths = {
     "package": '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/><path d="M7 9.5v3.6"/>',
     "plus": '<path d="M12 5v14M5 12h14"/>',
     "plus-circle": '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    "printer": '<path d="M6 9V3h12v6"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/><path d="M18 12h.01"/>',
     "receipt": '<path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/>',
     "refresh": '<path d="M20 7h-5V2"/><path d="M20 7a9 9 0 1 0 1 8"/>',
     "scan": '<path d="M3 8V4h4M17 4h4v4M21 16v4h-4M7 20H3v-4"/><path d="M7 12h10"/>',
@@ -218,7 +219,7 @@ function setupDocumentList(documents) {
     const selectedCount = document.querySelector("[data-selected-count]");
     const selectedLabel = document.querySelector("[data-selected-label]");
     const selectedTotal = document.querySelector("[data-selected-total]");
-    const submitButton = document.querySelector("[data-reimbursement-form] button[type=submit]");
+    const selectionActions = [...document.querySelectorAll("[data-selection-action]")];
     if (!checks.length) return;
 
     const updateSelection = () => {
@@ -227,7 +228,9 @@ function setupDocumentList(documents) {
         selectedCount.textContent = selected.length;
         selectedLabel.textContent = selected.length;
         selectedTotal.textContent = total.toFixed(2);
-        if (submitButton && !submitButton.hasAttribute("data-server-disabled")) submitButton.disabled = selected.length === 0;
+        selectionActions.forEach((button) => {
+            if (!button.hasAttribute("data-server-disabled")) button.disabled = selected.length === 0;
+        });
         const available = checks.filter((check) => !check.disabled);
         if (selectAll) {
             selectAll.checked = available.length > 0 && available.every((check) => check.checked);
