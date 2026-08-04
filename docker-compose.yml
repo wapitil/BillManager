@@ -41,6 +41,9 @@ services:
   caddy:
     build:
       context: ./caddy
+      args:
+        GOPROXY: https://goproxy.cn,direct
+        GOSUMDB: sum.golang.google.cn
     image: billmanage-caddy:latest
     container_name: billmanage-caddy
     restart: unless-stopped

@@ -71,6 +71,7 @@ Dockerfile / Compose 已针对国内构建做了以下优化：
 - Python 依赖及 lock 中的 wheel URL 均使用腾讯云 PyPI 镜像；
 - uv 下载目录使用 BuildKit cache mount。即使 `uv.lock` 更新，也能复用已下载的 wheel；
 - 仅业务代码发生变化时，依赖安装层会直接命中 Docker 缓存。
+- Caddy 的 DNSPod 插件使用 `goproxy.cn` 下载，并使用独立的 `sum.golang.google.cn` 校验模块；
 
 首次构建仍需下载基础镜像、uv 镜像、Tesseract 和 Python 依赖；从第二次构建开始通常会明显加快。
 可用下面的命令查看每一层的真实耗时：
@@ -101,6 +102,16 @@ sudo docker compose up -d
 - 代理走境外节点时，可将 Python 依赖源临时切回官方 PyPI；
 - 下载结果会保存在名为 `billmanage-uv` 的 BuildKit 缓存中；
 - 前提是 Clash 已允许局域网访问，且监听地址不是仅限 `127.0.0.1`。
+
+如果 Caddy 构建报 `goproxy.cn/sumdb/sum.golang.org` `504 Gateway Timeout`，可切换到官方 Go 代理（前提是服务器或 Docker 构建阶段能访问外网）：
+
+```bash
+sudo docker compose build \
+  --build-arg GOPROXY=https://proxy.golang.org,direct \
+  --build-arg GOSUMDB=sum.golang.google.cn \
+  --no-cache caddy
+sudo docker compose up -d
+```
 
 `.env` 内容如下：
 
