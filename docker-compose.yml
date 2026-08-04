@@ -6,12 +6,14 @@ services:
         # 国内拉取基础镜像：通过 daocloud 的 Docker Hub 代理；如不稳定可换成
         # registry.cn-hangzhou.aliyuncs.com 等其它可用代理，或保持 python:3.13-slim
         PYTHON_IMAGE: docker.m.daocloud.io/python:3.13-slim
-        # 构建卡在依赖下载时，可走服务器上已运行的 clash 代理（日本节点）：
+        # uv 官方镜像经 DaoCloud 代理拉取；避免在构建中执行 pip install uv。
+        UV_IMAGE: m.daocloud.io/ghcr.io/astral-sh/uv:0.12.1
+        # Python 依赖使用国内镜像；若镜像同步异常，可临时改为 https://pypi.org/simple。
+        UV_DEFAULT_INDEX: https://mirrors.aliyun.com/pypi/simple
+        # 如果所有镜像仍很慢，可走服务器上已运行的 clash 代理（日本节点）：
         # 网关地址先查：docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}'
         # HTTP_PROXY: http://<网关IP>:7890
         # HTTPS_PROXY: http://<网关IP>:7890
-        # PIP_INDEX_URL: https://pypi.org/simple
-        # UV_DEFAULT_INDEX: https://pypi.org/simple
     image: billmanage:latest
     container_name: billmanage
     restart: unless-stopped

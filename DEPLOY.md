@@ -54,36 +54,48 @@ mkdir -p data
 # 构建并启动
 sudo docker compose up -d --build
 
-# 说明：Dockerfile 已内置国内源
-#   - 基础镜像默认走 docker.m.daocloud.io 代理（可在 compose 的 build.args 修改）
-#   - apt 软件源使用腾讯云镜像 mirrors.cloud.tencent.com
-#   - Python 依赖源使用腾讯云 PyPI 镜像
+# 检查状态
+sudo docker compose ps
+curl -s http://127.0.0.1:8000/ | head -n 5   # 应返回页面
+```
 
-### 构建卡在依赖下载时的加速方法（clash 代理）
+Dockerfile / Compose 已针对国内构建做了以下优化：
 
-如果第 6 步（`pip install uv && uv sync`）下载依赖很慢或卡住，可以让构建走服务器上已运行的 clash：
+- Python 基础镜像走 DaoCloud 代理；
+- `uv` 二进制从 DaoCloud 代理的官方 uv 镜像复制，不再执行 `pip install uv`；
+- apt 软件源使用腾讯云镜像 `mirrors.cloud.tencent.com`；
+- Python 依赖默认使用阿里云 PyPI 镜像；
+- uv 下载目录使用 BuildKit cache mount。即使 `uv.lock` 更新，也能复用已下载的 wheel；
+- 仅业务代码发生变化时，依赖安装层会直接命中 Docker 缓存。
+
+首次构建仍需下载基础镜像、uv 镜像、Tesseract 和 Python 依赖；从第二次构建开始通常会明显加快。
+可用下面的命令查看每一层的真实耗时：
 
 ```bash
-# 容器内访问不到 127.0.0.1（那是容器自己），要用宿主机网关地址
+sudo docker compose build --progress plain
+```
+
+### 构建卡在依赖下载时的备用方法（Clash 代理）
+
+如果 `uv sync` 下载 Python 依赖仍然很慢，可以让构建走服务器上已运行的 Clash：
+
+```bash
+# 容器内访问不到 127.0.0.1（那是容器自己），要使用宿主机网关地址。
 GW=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
 
 sudo docker compose build \
   --build-arg HTTP_PROXY=http://$GW:7890 \
   --build-arg HTTPS_PROXY=http://$GW:7890 \
-  --build-arg PIP_INDEX_URL=https://pypi.org/simple \
   --build-arg UV_DEFAULT_INDEX=https://pypi.org/simple \
   --progress plain
+sudo docker compose up -d
 ```
 
 说明：
-- 代理走 clash 日本节点时，Python 依赖源也切回官方 PyPI，下载最快；
-- 依赖层成功后会被 Docker 缓存，以后构建不再重新下载；
-- 前提：clash 已开启且监听局域网（`clashctl status` 里能看到 `局域网代理 http://10.0.0.9:7890` 即满足）。
 
-# 检查状态
-sudo docker compose ps
-curl -s http://127.0.0.1:8000/ | head -n 5   # 应返回页面
-```
+- 代理走境外节点时，可将 Python 依赖源临时切回官方 PyPI；
+- 下载结果会保存在名为 `billmanage-uv` 的 BuildKit 缓存中；
+- 前提是 Clash 已允许局域网访问，且监听地址不是仅限 `127.0.0.1`。
 
 ## 四、通过 Tailscale 提供 HTTPS 访问
 
