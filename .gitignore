@@ -215,6 +215,11 @@ tempCodeRunnerFile.py
 # PyPI configuration file
 .pypirc
 
+# Local deployment secrets and Caddy state
+.env
+caddy/data/
+caddy/config/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

@@ -22,7 +22,7 @@ services:
     ports:
       # 端口映射格式：容器内的 8000（uvicorn 监听端口）→ 宿主机的 8000。
       # host_ip 用 127.0.0.1 = 只在服务器本机回环地址上监听，
-      # 公网网卡不开放此端口；组内成员通过 tailscale serve 的 HTTPS 访问。
+      # 公网网卡不开放此端口；组内成员通过 Caddy 的 Tailscale HTTPS 访问。
       - target: 8000
         published: 8000
         host_ip: 127.0.0.1
@@ -37,3 +37,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  caddy:
+    build:
+      context: ./caddy
+    image: billmanage-caddy:latest
+    container_name: billmanage-caddy
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      billmanage:
+        condition: service_healthy
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      TENCENTCLOUD_SECRET_ID: ${TENCENTCLOUD_SECRET_ID}
+      TENCENTCLOUD_SECRET_KEY: ${TENCENTCLOUD_SECRET_KEY}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
