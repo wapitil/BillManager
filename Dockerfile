@@ -1,13 +1,16 @@
 # 基础镜像可切换：国内构建时用 docker.m.daocloud.io 代理（docker compose build.args 覆盖）
 ARG PYTHON_IMAGE=python:3.13-slim
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
+ARG UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple
 FROM ${PYTHON_IMAGE}
 
 ENV PYTHONUNBUFFERED=1 \
     TZ=Asia/Shanghai \
     PIP_NO_CACHE_DIR=1 \
-    PIP_INDEX_URL=https://mirrors.cloud.tencent.com/pypi/simple \
+    PIP_INDEX_URL=${PIP_INDEX_URL} \
     UV_LINK_MODE=copy \
-    UV_DEFAULT_INDEX=https://mirrors.cloud.tencent.com/pypi/simple
+    UV_DEFAULT_INDEX=${UV_DEFAULT_INDEX} \
+    UV_HTTP_TIMEOUT=120
 
 # apt 源切换到腾讯云镜像（国内构建更快）
 RUN sed -i \

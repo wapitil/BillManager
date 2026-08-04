@@ -59,6 +59,27 @@ sudo docker compose up -d --build
 #   - apt 软件源使用腾讯云镜像 mirrors.cloud.tencent.com
 #   - Python 依赖源使用腾讯云 PyPI 镜像
 
+### 构建卡在依赖下载时的加速方法（clash 代理）
+
+如果第 6 步（`pip install uv && uv sync`）下载依赖很慢或卡住，可以让构建走服务器上已运行的 clash：
+
+```bash
+# 容器内访问不到 127.0.0.1（那是容器自己），要用宿主机网关地址
+GW=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
+
+sudo docker compose build \
+  --build-arg HTTP_PROXY=http://$GW:7890 \
+  --build-arg HTTPS_PROXY=http://$GW:7890 \
+  --build-arg PIP_INDEX_URL=https://pypi.org/simple \
+  --build-arg UV_DEFAULT_INDEX=https://pypi.org/simple \
+  --progress plain
+```
+
+说明：
+- 代理走 clash 日本节点时，Python 依赖源也切回官方 PyPI，下载最快；
+- 依赖层成功后会被 Docker 缓存，以后构建不再重新下载；
+- 前提：clash 已开启且监听局域网（`clashctl status` 里能看到 `局域网代理 http://10.0.0.9:7890` 即满足）。
+
 # 检查状态
 sudo docker compose ps
 curl -s http://127.0.0.1:8000/ | head -n 5   # 应返回页面
